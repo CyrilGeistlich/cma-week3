@@ -158,7 +158,6 @@ posmo <- tidyr::drop_na(posmo)
 
 posmo <- posmo |>
   ungroup() |>
-  mutate(diff_s = as.numeric(difftime(lead(datetime),datetime))) |>
   mutate(static = stepMean < mean(stepMean, na.rm = TRUE))
 
 posmo_mean <- posmo |>
@@ -209,12 +208,41 @@ posmo <- posmo |>
     mutate(segment_id = rle_id(static)) |>
     filter(!static)
 
+
+
+# assuming your dataframe is called 'df'
+# and the column names are 'diff_s' and 'segment_id'
+
+# create a new column 'diff_s_without_last' that has the same values as 'diff_s',
+# except for the last value for each segment
+df$diff_s_without_last <- ave(df$diff_s, df$segment_id, FUN = function(x) c(x[-length(x)], NA))
+
+# sum the 'diff_s_without_last' column for each segment_id
+sum_diff_s <- aggregate(df$diff_s_without_last, by=list(segment=df$segment_id), FUN=sum, na.rm=TRUE)
+
+# rename the columns to something more descriptive
+colnames(sum_diff_s) <- c("Segment ID", "Total Time (s)")
+
+# print the resulting dataframe
+print(sum_diff_s)
+
+
+
+
+```
+```{r}
 posmo |>
     ggplot(aes(X, Y, color = segment_id)) +
     geom_path() +
     geom_point() +
-    coord_fixed()
+    coord_fixed() + 
+    ggtitle("Segmentation (All)")
 
+posmo |> ggplot(aes(X, Y, color = segment_id)) +
+    geom_path() +
+    geom_point() +
+    coord_fixed() + 
+    ggtitle("Segmentation (> 5 minutes)")
 ```
 
   
