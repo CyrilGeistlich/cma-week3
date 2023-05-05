@@ -205,44 +205,41 @@ rle_id(posmo$static)
 ```{r rename and filter static}
 
 posmo <- posmo |>
-    mutate(segment_id = rle_id(static)) |>
-    filter(!static)
+    mutate(segment_id = as.numeric(rle_id(static))) |>
+    filter(!static) |>
+    mutate(diff_s = as.numeric(difftime(lead(datetime),datetime)))
 
-
-
-# assuming your dataframe is called 'df'
-# and the column names are 'diff_s' and 'segment_id'
-
-# create a new column 'diff_s_without_last' that has the same values as 'diff_s',
-# except for the last value for each segment
-df$diff_s_without_last <- ave(df$diff_s, df$segment_id, FUN = function(x) c(x[-length(x)], NA))
+#Remove last time from each segment
+posmo$diff_s_rm_last <- ave(posmo$diff_s, posmo$segment_id, FUN = function(x) c(x[-length(x)], NA))
 
 # sum the 'diff_s_without_last' column for each segment_id
-sum_diff_s <- aggregate(df$diff_s_without_last, by=list(segment=df$segment_id), FUN=sum, na.rm=TRUE)
+tot_diff_s <- aggregate(posmo$diff_s_rm_last, by=list(segment=posmo$segment_id), FUN=sum, na.rm=TRUE)
 
 # rename the columns to something more descriptive
-colnames(sum_diff_s) <- c("Segment ID", "Total Time (s)")
-
-# print the resulting dataframe
-print(sum_diff_s)
-
-
-
+colnames(tot_diff_s) <- c("segment_id", "tot_diff_s")
 
 ```
-```{r}
-posmo |>
-    ggplot(aes(X, Y, color = segment_id)) +
-    geom_path() +
-    geom_point() +
-    coord_fixed() + 
-    ggtitle("Segmentation (All)")
 
-posmo |> ggplot(aes(X, Y, color = segment_id)) +
+```{r visualise}
+posmo |>
+  mutate(segment_id = as.factor(segment_id))|>
+    ggplot(aes(X, Y, color = segment_id)) +
+    geom_path()+
+    geom_point() +
+    coord_fixed() + 
+    ggtitle("Segmentation (All)") +
+    scale_color_discrete(name = "Segment ID")
+
+
+posmo |>
+  mutate(segment_id = as.factor(segment_id))|>
+  filter(tot_diff_s > 300) |>
+  ggplot(aes(X, Y, color = segment_id)) +
     geom_path() +
     geom_point() +
     coord_fixed() + 
-    ggtitle("Segmentation (> 5 minutes)")
+    ggtitle("Segmentation (> 5 minutes)") +
+    scale_color_discrete(name = "Segment ID")
 ```
 
   
