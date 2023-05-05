@@ -113,7 +113,7 @@ posmo <- st_transform(posmo, crs = 2056)
 ```{r prep data}
 posmo_coordinates <- st_coordinates(posmo)
 posmo <- cbind(posmo, posmo_coordinates)
-posmo_filter <- posmo |>
+posmo <- posmo |>
     filter(as.Date(datetime) == "2023-04-29")
 ```
 
@@ -127,13 +127,15 @@ posmo |>
 
 ```
 
+# Task 2: Specify and apply threshold distance
+
 ```{r steplenght Posmo}
 posmo |> 
   mutate(
     stepLength = sqrt((lead(X)-X)**2 + (lead(Y)-Y)**2)
     )
 ```
-```{r}
+```{r prep stepmean}
 posmo <- posmo |>
     mutate(
         nMinus2 = sqrt((lag(X, 2) - X)^2 + (lag(Y, 2) - Y)^2), 
@@ -151,63 +153,60 @@ posmo <- posmo |>
     ) |>
     ungroup()
 
+posmo <- posmo |>
+  ungroup() |>
+  mutate(diff_s = as.numeric(difftime(lead(datetime),datetime))) |>
+  mutate(static = stepMean < mean(stepMean, na.rm = TRUE))
+
+
+posmo_mean <- posmo |>
+  filter(!static) 
+
+
 ```
 
-```{r}
+```{r visualise stepmean}
 ggplot(posmo, aes(stepMean)) +
   geom_histogram(binwidth = 10)
   
 ```
 
-```{r}
-posmo <- posmo |>
-  ungroup() |>
-  mutate(diff_s = as.numeric(difftime(lead(datetime),datetime))) |>
-  mutate(static_mean = stepMean < mean(stepMean, na.rm = TRUE)) |>
-  mutate(static_method1 = 10 < (stepMean/diff_s), na.rm = TRUE)
-  
+# Task 3: Visualise segmented trajectories
 
-posmo_filter_mean <- posmo |>
-  filter(!static_mean) 
-
-posmo_filter_median <- posmo|>
-  filter(!static_method1) 
-
-posmo_filter_mean |>
-    ggplot(aes(X, Y, color = datetime)) +
-    geom_path() +
-    geom_point() +
-    coord_fixed()
-```
-```{r}
-posmo_filter_median |>
-    ggplot(aes(X, Y, color = datetime)) +
-    geom_path() +
-    geom_point() +
-    coord_fixed()
-```
+```{r visualise static}
 
 
-Since we have much larger differences in steplength we cannot use mean as with the sabi data set. We use the median instead, this provides much better results. 
-```{r}
-
-  table(posmo$static_mean)
-  table(posmo$static_method1)
-
-```
-```{r}
-  table(posmo$static)
-```
-```{r}
 posmo |>
-  mutate(
-    static = stepMean < median(stepMean, na.rm = TRUE)
-  ) |> 
-  ggplot(aes(X,Y)) +
-  geom_point(aes(color = static)) +
-  geom_path() +
-  coord_fixed()
+    ggplot(aes(X, Y, color = static)) +
+    geom_path() +
+    geom_point() +
+    coord_fixed() +
+    ggtitle("False Flag stepMean < mean(stepmean)")
+
+posmo_mean|>
+    ggplot(aes(X, Y, color = datetime)) +
+    geom_path() +
+    geom_point() +
+    coord_fixed()
 
   table(posmo$static)
 ```
+# Task 4: Segment-based analysis
 
+```{r assign id}
+rle_id <- function(vec) {
+    x <- rle(vec)$lengths
+    as.factor(rep(seq_along(x), times = x))
+}
+
+rle_id(posmo$static)
+```
+
+```{r}
+posmo_filter <- posmo_filter |>
+    mutate(segment_id = rle_id(static))
+
+head(posmo_filter)
+```
+
+  
