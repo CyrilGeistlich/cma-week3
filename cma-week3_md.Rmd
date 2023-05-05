@@ -153,15 +153,16 @@ posmo <- posmo |>
     ) |>
     ungroup()
 
+
+posmo <- tidyr::drop_na(posmo)
+
 posmo <- posmo |>
   ungroup() |>
   mutate(diff_s = as.numeric(difftime(lead(datetime),datetime))) |>
   mutate(static = stepMean < mean(stepMean, na.rm = TRUE))
 
-
 posmo_mean <- posmo |>
   filter(!static) 
-
 
 ```
 
@@ -174,8 +175,6 @@ ggplot(posmo, aes(stepMean)) +
 # Task 3: Visualise segmented trajectories
 
 ```{r visualise static}
-
-
 posmo |>
     ggplot(aes(X, Y, color = static)) +
     geom_path() +
@@ -194,6 +193,8 @@ posmo_mean|>
 # Task 4: Segment-based analysis
 
 ```{r assign id}
+
+
 rle_id <- function(vec) {
     x <- rle(vec)$lengths
     as.factor(rep(seq_along(x), times = x))
@@ -202,11 +203,18 @@ rle_id <- function(vec) {
 rle_id(posmo$static)
 ```
 
-```{r}
-posmo_filter <- posmo_filter |>
-    mutate(segment_id = rle_id(static))
+```{r rename and filter static}
 
-head(posmo_filter)
+posmo <- posmo |>
+    mutate(segment_id = rle_id(static)) |>
+    filter(!static)
+
+posmo |>
+    ggplot(aes(X, Y, color = segment_id)) +
+    geom_path() +
+    geom_point() +
+    coord_fixed()
+
 ```
 
   
