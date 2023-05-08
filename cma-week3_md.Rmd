@@ -15,6 +15,7 @@ library("sf")
 library("ggplot2") # to visualize data
 library("gitcreds")
 library("dplyr")
+library("SimilarityMeasures")
 ```
 
 ```{r prep data}
@@ -218,6 +219,9 @@ tot_diff_s <- aggregate(posmo$diff_s_rm_last, by=list(segment=posmo$segment_id),
 # rename the columns to something more descriptive
 colnames(tot_diff_s) <- c("segment_id", "tot_diff_s")
 
+
+posmo <- left_join(posmo, tot_diff_s, by = "segment_id")
+
 ```
 
 ```{r visualise}
@@ -241,5 +245,80 @@ posmo |>
     ggtitle("Segmentation (> 5 minutes)") +
     scale_color_discrete(name = "Segment ID")
 ```
+```{r clear env}
+rm(list = ls())
+```
 
+# Task 5: Similarity Measures
+
+```{r}
+pedestrian <- read_delim("data/pedestrian.csv", ",")
+```
+
+```{r visualise pedestrians}
+pedestrian |> 
+  ggplot(aes(E,N,colour = as.factor(TrajID))) +
+  geom_point() +
+  geom_path() +
+  facet_wrap(~ TrajID, ncol = 3) +
+  coord_fixed() + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
   
+
+```
+Before visualizing your results think about the following: Which two trajectories to you percieve to be most similar, which are most dissimilar? Now visualize the results from the computed similarity measures. Which measure reflects your own intuition the closest?
+
+The paths are very similar overall, especially 1,2,3 & 6. Path 4 is slightly different and path 5 might have an outlier. I expect the similarity measures to reflect these results.  
+
+# Task 6: Calculate Similarity
+
+```{r Compute similarity}
+# Select the first trajectory
+traj1 <- filter(pedestrian, TrajID == 1) |> select(E, N) |> as.matrix()
+
+# Create storage for similarity measures
+similarity_measures <- c()
+
+# Compute similarity measures
+for (trajID in unique(pedestrian$TrajID)[-1]) {
+  traj2 <- filter(pedestrian, TrajID == trajID) |> select(E, N) |> as.matrix()
+  sim <- c(DTW(traj1, traj2),
+           EditDist(traj1, traj2, pointDistance = 20),
+           Frechet(traj1, traj2, testLeash = -1),
+           LCSS(traj1, traj2, pointSpacing = 5, pointDistance = 20, errorMarg = 5, returnTrans = FALSE))
+  similarity_measures <- rbind(similarity_measures, sim)
+}
+```
+
+```{r}
+(similarity_measures)
+```
+
+```{r}
+# Add similarity measures to the pedestrian data frame
+pedestrian_similarity <- data.frame(TrajID = unique(pedestrian$TrajID)[-1],
+                                     DTW = similarity_measures[, 1],
+                                     EditDist = similarity_measures[, 2],
+                                     Frechet = similarity_measures[, 3],
+                                     LCSS = similarity_measures[, 4])
+write.csv(pedestrian_similarity, "data/similarities.csv", row.names = FALSE)
+```
+
+```{r results similarity}
+# Results
+pedestrian_similarity
+```
+
+```{r vis results}
+pedestrian_similarity_long <- pedestrian_similarity |> 
+  tidyr::pivot_longer(cols = c(DTW, EditDist, Frechet, LCSS), names_to = "method")
+
+ggplot(pedestrian_similarity_long, aes(x = TrajID, y = value, fill = as.factor(TrajID))) +
+  geom_col() +
+  facet_wrap(~method, nrow = 2, scales = "free_y") +
+  labs(x = "TrajID", y = "Similarity Value", fill = "TrajID") +
+  theme(legend.position = "right")
+  
+```
+
+The calculated results differ from the expectations. I expected path 4 & 5 to be very different. In fact they fall in between in the similarity measures. This is unexpected and an adjustment of input parameters could yield better results. 
